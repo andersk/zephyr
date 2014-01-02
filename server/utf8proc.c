@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2006-2007 Jan Behrens, FlexiGuided GmbH, Berlin
+ *  Copyright (c) 2009 Public Software Group e. V., Berlin, Germany
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a
  *  copy of this software and associated documentation files (the "Software"),
@@ -33,8 +33,6 @@
 
 /*
  *  File name:    utf8proc.c
- *  Version:      1.1.1
- *  Last changed: 2007-07-22
  *
  *  Description:
  *  Implementation of libutf8proc.
@@ -72,7 +70,7 @@ const int8_t utf8proc_utf8class[256] = {
 #define UTF8PROC_HANGUL_TCOUNT 28
 #define UTF8PROC_HANGUL_NCOUNT 588
 #define UTF8PROC_HANGUL_SCOUNT 11172
-// END is exclusive
+/* END is exclusive */
 #define UTF8PROC_HANGUL_L_START  0x1100
 #define UTF8PROC_HANGUL_L_END    0x115A
 #define UTF8PROC_HANGUL_L_FILLER 0x115F
@@ -96,6 +94,10 @@ const int8_t utf8proc_utf8class[256] = {
 #define UTF8PROC_BOUNDCLASS_LV       9
 #define UTF8PROC_BOUNDCLASS_LVT     10
 
+
+const char *utf8proc_version(void) {
+  return "1.1.6";
+}
 
 const char *utf8proc_errmsg(ssize_t errcode) {
   switch (errcode) {
@@ -192,7 +194,7 @@ ssize_t utf8proc_encode_char(int32_t uc, uint8_t *dst) {
 }
 
 const utf8proc_property_t *utf8proc_get_property(int32_t uc) {
-  // ASSERT: uc >= 0 && uc < 0x110000
+  /* ASSERT: uc >= 0 && uc < 0x110000 */
   return utf8proc_properties + (
     utf8proc_stage2table[
       utf8proc_stage1table[uc >> 8] + (uc & 0xFF)
@@ -206,7 +208,7 @@ const utf8proc_property_t *utf8proc_get_property(int32_t uc) {
 
 ssize_t utf8proc_decompose_char(int32_t uc, int32_t *dst, ssize_t bufsize,
     int options, int *last_boundclass) {
-  // ASSERT: uc >= 0 && uc < 0x110000
+  /* ASSERT: uc >= 0 && uc < 0x110000 */
   const utf8proc_property_t *property;
   utf8proc_propval_t category;
   int32_t hangul_sindex;
@@ -353,7 +355,7 @@ ssize_t utf8proc_decompose(
   const uint8_t *str, ssize_t strlen,
   int32_t *buffer, ssize_t bufsize, int options
 ) {
-  // strlen will be ignored, if UTF8PROC_NULLTERM is set in options
+  /* strlen will be ignored, if UTF8PROC_NULLTERM is set in options */
   ssize_t wpos = 0;
   if ((options & UTF8PROC_COMPOSE) && (options & UTF8PROC_DECOMPOSE))
     return UTF8PROC_ERROR_INVALIDOPTS;
@@ -368,8 +370,8 @@ ssize_t utf8proc_decompose(
     while (1) {
       if (options & UTF8PROC_NULLTERM) {
         rpos += utf8proc_iterate(str + rpos, -1, &uc);
-        // checking of return value is not neccessary,
-        // as 'uc' is < 0 in case of error
+        /* checking of return value is not neccessary,
+           as 'uc' is < 0 in case of error */
         if (uc < 0) return UTF8PROC_ERROR_INVALIDUTF8;
         if (rpos < 0) return UTF8PROC_ERROR_OVERFLOW;
         if (uc == 0) break;
@@ -384,7 +386,7 @@ ssize_t utf8proc_decompose(
       );
       if (decomp_result < 0) return decomp_result;
       wpos += decomp_result;
-      // prohibiting integer overflows due to too long strings:
+      /* prohibiting integer overflows due to too long strings: */
       if (wpos < 0 || wpos > SSIZE_MAX/sizeof(int32_t)/2)
         return UTF8PROC_ERROR_OVERFLOW;
     }
@@ -412,8 +414,8 @@ ssize_t utf8proc_decompose(
 }
 
 ssize_t utf8proc_reencode(int32_t *buffer, ssize_t length, int options) {
-  // UTF8PROC_NULLTERM option will be ignored, 'length' is never ignored
-  // ASSERT: 'buffer' has one spare byte of free space at the end!
+  /* UTF8PROC_NULLTERM option will be ignored, 'length' is never ignored
+     ASSERT: 'buffer' has one spare byte of free space at the end! */
   if (options & (UTF8PROC_NLF2LS | UTF8PROC_NLF2PS | UTF8PROC_STRIPCC)) {
     ssize_t rpos;
     ssize_t wpos = 0;
@@ -457,7 +459,7 @@ ssize_t utf8proc_reencode(int32_t *buffer, ssize_t length, int options) {
       current_char = buffer[rpos];
       current_property = utf8proc_get_property(current_char);
       if (starter && current_property->combining_class > max_combining_class) {
-        // combination perhaps possible
+        /* combination perhaps possible */
         int32_t hangul_lindex;
         int32_t hangul_sindex;
         hangul_lindex = *starter - UTF8PROC_HANGUL_LBASE;
@@ -548,7 +550,7 @@ ssize_t utf8proc_map(
   }
   {
     int32_t *newptr;
-    newptr = realloc(buffer, result+1);
+    newptr = realloc(buffer, (size_t)result+1);
     if (newptr) buffer = newptr;
   }
   *dstptr = (uint8_t *)buffer;

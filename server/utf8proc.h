@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2006-2007 Jan Behrens, FlexiGuided GmbH, Berlin
+ *  Copyright (c) 2009 Public Software Group e. V., Berlin, Germany
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a
  *  copy of this software and associated documentation files (the "Software"),
@@ -23,8 +23,6 @@
 
 /*
  *  File name:    utf8proc.h
- *  Version:      1.1.1
- *  Last changed: 2007-07-22
  *
  *  Description:
  *  Header files for libutf8proc, which is a mapping tool for UTF-8 strings
@@ -55,13 +53,32 @@
 
 
 #include <stdlib.h>
-#include <stdbool.h>
 #include <sys/types.h>
+#ifdef _MSC_VER
+typedef signed char int8_t;
+typedef unsigned char uint8_t;
+typedef short int16_t;
+typedef unsigned short uint16_t;
+typedef int int32_t;
+#ifdef _WIN64
+#define ssize_t __int64
+#else
+#define ssize_t int
+#endif
+typedef unsigned char bool;
+enum {false, true};
+#else
+#include <stdbool.h>
 #include <inttypes.h>
+#endif
 #include <limits.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef SSIZE_MAX
-#define SSIZE_MAX (SIZE_MAX/2)
+#define SSIZE_MAX ((size_t)SIZE_MAX/2)
 #endif
 
 #define UTF8PROC_NULLTERM  (1<<0)
@@ -220,6 +237,8 @@ typedef struct utf8proc_property_struct {
 
 extern const int8_t utf8proc_utf8class[256];
 
+const char *utf8proc_version(void);
+
 const char *utf8proc_errmsg(ssize_t errcode);
 /*
  *  Returns a static error string for the given error code.
@@ -358,6 +377,9 @@ uint8_t *utf8proc_NFKC(const uint8_t *str);
  *  normalized version of the null-terminated string 'str'.
  */
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 
