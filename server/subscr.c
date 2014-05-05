@@ -238,6 +238,7 @@ subscr_copy_def_subs(char *person)
 	retval = read(fd, def_sub_area, (size_t) statbuf.st_size);
 	if (retval != statbuf.st_size) {
 	    syslog(LOG_ERR, "short read in copy_def_subs");
+	    free(def_sub_area);
 	    close(fd);
 	    return NULL;
 	}
@@ -616,6 +617,7 @@ subscr_send_subs(Client *client)
 	memcpy(&bufp[8], Z_keydata(client->session_keyblock), Z_keylen(client->session_keyblock));
 
 	retval = ZMakeZcode(buf, sizeof(buf), bufp, Z_keylen(client->session_keyblock) + 8);
+	free(bufp);
 #endif /* HAVE_KRB5 */
 
 #ifdef HAVE_KRB5
@@ -740,13 +742,6 @@ subscr_dump_subs(FILE *fp,
     }
 }
 
-#define I_ADVANCE(xx)   { cp += (strlen(cp) + 1); \
-                  if (cp >= notice->z_message + notice->z_message_len) { \
-                          syslog(LOG_WARNING, "malformed subscription %d", \
-                                 xx); \
-                          return (ZERR_NONE); \
-                  }}
-
 /* As it exists, this function expects to take only the first sub from the
  * Destlist. At some point, it and the calling code should be replaced */
 static Code_t
@@ -774,6 +769,7 @@ subscr_realm_sendit(Client *who,
     {
       syslog(LOG_ERR, "subscr_rlm_sendit make ascii: %s",
              error_message(retval));
+      free(text);
       return(ZERR_NONE);
     }
   text[0] = addr;
@@ -1090,6 +1086,7 @@ subscr_check_foreign_subs(ZNotice_t *notice,
     if ((text = (char **)malloc((found * NUM_FIELDS + 2) * sizeof(char *)))
 	== (char **) 0) {
 	syslog(LOG_ERR, "subscr_ck_forn_subs no mem(text)");
+	free_subscriptions(newsubs);
 	free_string(sender);
 	return(ENOMEM);
     }
@@ -1098,10 +1095,24 @@ subscr_check_foreign_subs(ZNotice_t *notice,
     cp = notice->z_message;
     text[0] = cp;
 
-    I_ADVANCE(2);
+    cp += (strlen(cp) + 1);
+    if (cp >= notice->z_message + notice->z_message_len) {
+	syslog(LOG_WARNING, "malformed subscription %d", 2);
+	free_subscriptions(newsubs);
+	free_string(sender);
+	free(text);
+	return (ZERR_NONE);
+    }
     text[1] = cp;
 
-    I_ADVANCE(3);
+    cp += (strlen(cp) + 1);
+    if (cp >= notice->z_message + notice->z_message_len) {
+	syslog(LOG_WARNING, "malformed subscription %d", 3);
+	free_subscriptions(newsubs);
+	free_string(sender);
+	free(text);
+	return (ZERR_NONE);
+    }
 
     found = 0;
     for (subs = newsubs; subs; subs = next) {
@@ -1112,6 +1123,7 @@ subscr_check_foreign_subs(ZNotice_t *notice,
 	  syslog(LOG_WARNING, "subscr bad recip %s by %s (%s)",
 		 subs->dest.recip->string,
 		 sender->string, rlm->name);
+	  free_subscription(subs);
 	  continue;
 	}
 	acl = class_get_acl(subs->dest.classname);
@@ -1122,7 +1134,7 @@ subscr_check_foreign_subs(ZNotice_t *notice,
 		    syslog(LOG_WARNING, "subscr auth not verifiable %s (%s) class %s",
 			   sender->string, rlm->name,
 			   subs->dest.classname->string);
-		    free_subscriptions(newsubs);
+		    free_subscriptions(subs);
 		    free_string(sender);
 		    free(text);
 		    return ZSRV_CLASSRESTRICTED;
@@ -1131,6 +1143,7 @@ subscr_check_foreign_subs(ZNotice_t *notice,
 	    if (!access_check(sender->string, who, acl, SUBSCRIBE)) {
 		syslog(LOG_WARNING, "subscr unauth %s class %s",
 		       sender->string, subs->dest.classname->string);
+		free_subscription(subs);
 		continue; /* the for loop */
 	    }
 	    if (wildcard_instance == subs->dest.inst) {
@@ -1138,6 +1151,7 @@ subscr_check_foreign_subs(ZNotice_t *notice,
 		    syslog(LOG_WARNING,
 			   "subscr unauth %s class %s wild inst",
 			   sender->string, subs->dest.classname->string);
+		    free_subscription(subs);
 		    continue;
 		}
 	    }
@@ -1157,9 +1171,10 @@ subscr_check_foreign_subs(ZNotice_t *notice,
 
 	if (retval != ZERR_NONE) {
 	    if (retval == ZSRV_CLASSXISTS) {
+		free_subscription(subs);
 		continue;
 	    } else {
-		free_subscriptions(newsubs); /* subs->next XXX */
+		free_subscriptions(subs);
 		free_string(sender);
 		free(text);
 		return retval;
@@ -1221,7 +1236,11 @@ Code_t subscr_foreign_user(ZNotice_t *notice,
     return(ZERR_NONE);
   }
 
-  I_ADVANCE(0);
+  cp += (strlen(cp) + 1);
+  if (cp >= notice->z_message + notice->z_message_len) {
+    syslog(LOG_WARNING, "malformed subscription %d", 0);
+    return (ZERR_NONE);
+  }
 #ifdef DEBUG
   tp1 = cp;
 #endif
@@ -1237,7 +1256,11 @@ Code_t subscr_foreign_user(ZNotice_t *notice,
       return(ZERR_NONE);
     }
 
-  I_ADVANCE(1);
+  cp += (strlen(cp) + 1);
+  if (cp >= notice->z_message + notice->z_message_len) {
+    syslog(LOG_WARNING, "malformed subscription %d", 1);
+    return (ZERR_NONE);
+  }
 
   snotice.z_message = cp;
   snotice.z_message_len = notice->z_message_len - (cp - notice->z_message);
@@ -1254,6 +1277,7 @@ Code_t subscr_foreign_user(ZNotice_t *notice,
     if (!strcmp(tp0, "0.0.0.0")) {
       /* skip bogus ADD reply from subscr_realm_subs */
       zdbug((LOG_DEBUG, "subscr_foreign_user ADD skipped"));
+      free_subscriptions(newsubs);
       return(ZERR_NONE);
     }
 
@@ -1279,6 +1303,7 @@ Code_t subscr_foreign_user(ZNotice_t *notice,
   } else {
     syslog(LOG_ERR, "bogus opcode %s in subscr_forn_user",
            snotice.z_opcode);
+    free_subscriptions(newsubs);
     status = ZERR_NONE;
   }
   return(status);
